@@ -1,0 +1,62 @@
+From bd9a60ef9802ab503509e435a5b096092fdd877c Mon Sep 17 00:00:00 2001
+From: Abhinav Singh <singhabhinav9051571833@gmail.com>
+Date: Tue, 31 Oct 2023 03:16:59 +0530
+Subject: [PATCH v2] x86/hyperv : Fixing removal of __iomem address space warning
+
+This patch fixes two sparse warnings
+
+1. sparse complaining about the removal of __iomem address
+space when casting the return value of this ioremap_cache(...)
+from `void __ioremap*` to `void*`.
+Fixed this by replacing the ioremap_cache(...)
+by memremap(...) and using MEMREMAP_DEC and MEMREMAP_WB flag for making
+sure the memory is always decrypted and it will support full write back
+cache.
+
+2. sparse complaining `expected void volatile [noderef] __iomem *addr`
+when calling iounmap with a non __iomem pointer.
+Fixed this by replacing iounmap(...) with memumap(...).
+
+Signed-off-by: Abhinav Singh <singhabhinav9051571833@gmail.com>
+---
+
+v1:
+https://lore.kernel.org/all/19cec6f0-e176-4bcc-95a0-9d6eb0261ed1@gmail.com/T/
+
+v1 to v2:
+1. Fixed the comment which was earlier describing ioremap_cache(...).
+2. Replaced iounmap(...) with memremap(...) inside function hv_cpu_die(...).
+
+ arch/x86/hyperv/hv_init.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/arch/x86/hyperv/hv_init.c b/arch/x86/hyperv/hv_init.c
+index 21556ad87f4b..2a14928b8a36 100644
+--- a/arch/x86/hyperv/hv_init.c
++++ b/arch/x86/hyperv/hv_init.c
+@@ -68,9 +68,11 @@ static int hyperv_init_ghcb(void)
+ 	 */
+ 	rdmsrl(MSR_AMD64_SEV_ES_GHCB, ghcb_gpa);
+
+-	/* Mask out vTOM bit. ioremap_cache() maps decrypted */
++	/* Mask out vTOM bit.
++	MEMREMAP_WB full write back cache
++	MEMREMAP_DEC maps decrypted memory */
+ 	ghcb_gpa &= ~ms_hyperv.shared_gpa_boundary;
+-	ghcb_va = (void *)ioremap_cache(ghcb_gpa, HV_HYP_PAGE_SIZE);
++	ghcb_va = memremap(ghcb_gpa, HV_HYP_PAGE_SIZE, MEMREMAP_WB | MEMREMAP_DEC);
+ 	if (!ghcb_va)
+ 		return -ENOMEM;
+
+@@ -238,7 +240,7 @@ static int hv_cpu_die(unsigned int cpu)
+ 	if (hv_ghcb_pg) {
+ 		ghcb_va = (void **)this_cpu_ptr(hv_ghcb_pg);
+ 		if (*ghcb_va)
+-			iounmap(*ghcb_va);
++			memunmap(*ghcb_va);
+ 		*ghcb_va = NULL;
+ 	}
+
+--
+2.39.2
+
