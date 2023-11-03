@@ -1,0 +1,55 @@
+From bd249c21c4711a4f60ece9cd72a165d933d9bcc0 Mon Sep 17 00:00:00 2001
+From: Abhinav Singh <singhabhinav9051571833@gmail.com>
+Date: Fri, 3 Nov 2023 21:04:49 +0530
+Subject: [PATCH] drivers: gpu: Fix warning using plain integer as NULL
+pointer
+
+sparse static analysis tools generate a warning with this message
+"Using plain integer as NULL pointer". In this case this warning is
+being shown because we are trying to intialize a pointer to NULL using
+integer value 0.
+
+Signed-off-by: Abhinav Singh <singhabhinav9051571833@gmail.com>
+---
+ drivers/gpu/drm/radeon/clearstate_evergreen.h | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/radeon/clearstate_evergreen.h b/drivers/gpu/drm/radeon/clearstate_evergreen.h
+index 63a1ffbb3ced..3b645558f133 100644
+--- a/drivers/gpu/drm/radeon/clearstate_evergreen.h
++++ b/drivers/gpu/drm/radeon/clearstate_evergreen.h
+@@ -1049,7 +1049,7 @@ static const struct cs_extent_def SECT_CONTEXT_defs[] =
+     {SECT_CONTEXT_def_5, 0x0000a29e, 5 },
+     {SECT_CONTEXT_def_6, 0x0000a2a5, 56 },
+     {SECT_CONTEXT_def_7, 0x0000a2de, 290 },
+-    { 0, 0, 0 }
++    { NULL, 0, 0 }
+ };
+ static const u32 SECT_CLEAR_def_1[] =
+ {
+@@ -1060,7 +1060,7 @@ static const u32 SECT_CLEAR_def_1[] =
+ static const struct cs_extent_def SECT_CLEAR_defs[] =
+ {
+     {SECT_CLEAR_def_1, 0x0000ffc0, 3 },
+-    { 0, 0, 0 }
++    { NULL, 0, 0 }
+ };
+ static const u32 SECT_CTRLCONST_def_1[] =
+ {
+@@ -1070,11 +1070,11 @@ static const u32 SECT_CTRLCONST_def_1[] =
+ static const struct cs_extent_def SECT_CTRLCONST_defs[] =
+ {
+     {SECT_CTRLCONST_def_1, 0x0000f3fc, 2 },
+-    { 0, 0, 0 }
++    { NULL, 0, 0 }
+ };
+ static const struct cs_section_def evergreen_cs_data[] = {
+     { SECT_CONTEXT_defs, SECT_CONTEXT },
+     { SECT_CLEAR_defs, SECT_CLEAR },
+     { SECT_CTRLCONST_defs, SECT_CTRLCONST },
+-    { 0, SECT_NONE }
++    { NULL, SECT_NONE }
+ };
+--
+2.39.2
+
