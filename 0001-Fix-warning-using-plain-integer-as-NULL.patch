@@ -1,0 +1,31 @@
+From 7f81373ba837d9c628d0b98b242524d56e221c64 Mon Sep 17 00:00:00 2001
+From: Abhinav Singh <singhabhinav9051571833@gmail.com>
+Date: Fri, 10 Nov 2023 03:16:57 +0530
+Subject: [PATCH] driver: scsi: Fix warning using plain integer as NULL
+
+Sparse static analysis tools generate a warning with this message
+"Using plain integer as NULL pointer". In this case this warning is
+being shown because we are trying to initialize  pointer to NULL using
+integer value 0.
+
+Signed-off-by: Abhinav Singh <singhabhinav9051571833@gmail.com>
+---
+ drivers/scsi/dc395x.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/scsi/dc395x.c b/drivers/scsi/dc395x.c
+index c8e86f8a631e..d108a86e196e 100644
+--- a/drivers/scsi/dc395x.c
++++ b/drivers/scsi/dc395x.c
+@@ -1366,7 +1366,7 @@ static u8 start_scsi(struct AdapterCtlBlk* acb, struct DeviceCtlBlk* dcb,
+ 			"command while another command (0x%p) is active.",
+ 			srb->cmd,
+ 			acb->active_dcb->active_srb ?
+-			    acb->active_dcb->active_srb->cmd : 0);
++			    acb->active_dcb->active_srb->cmd : NULL);
+ 		return 1;
+ 	}
+ 	if (DC395x_read16(acb, TRM_S1040_SCSI_STATUS) & SCSIINTERRUPT) {
+-- 
+2.39.2
+
