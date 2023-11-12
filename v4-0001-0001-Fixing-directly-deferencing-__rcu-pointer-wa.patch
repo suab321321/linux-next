@@ -1,0 +1,101 @@
+From ae360995107fd246f75044c722be9c8a5f93816d Mon Sep 17 00:00:00 2001
+From: Abhinav Singh <singhabhinav9051571833@gmail.com>
+Date: Sun, 12 Nov 2023 16:57:29 +0530
+Subject: [PATCH v4] Fixing directly deferencing a __rcu pointer warning
+
+This patch fixes the sparse warning with this message 
+"dereference of noderef expression" , in this context 
+it means about directly dereferencing a pointer tagged 
+with __rcu annotation.
+
+Dereferencing the pointers tagged with __rcu directly should
+always be avoided according to the docs. There is a rcu helper
+function rcu_dereference(...) to use when dereferencing a __rcu
+pointer inside rcu read side critical sections. This function
+returns the non __rcu tagged pointer which can be dereferenced
+just like a normal pointer.
+
+I tested with `lockdep` enabled, with these config options
+`CONFIG_PROVE_RCU` and `CONFIG_PROVE_LOCKING` enabled and it 
+booted just fine. To confirm if lockdep was really enabled 
+I found these paths inside the qemu virtual envirnoment.
+/proc/lockdep
+/proc/lockdep_chains
+/proc/lockdep_stat
+/proc/locks
+/proc/lock_stats
+
+I tested the above kernel using qemu with this command
+qemu-system-x86_64 \
+        -m 2G \
+        -smp 2 \
+        -kernel /home/abhinav/linux_work/linux/arch/x86/boot/bzImage \
+        -append "console=ttyS0 root=/dev/sda earlyprintk=serial   net.ifnames=0" \
+        -drive file=/home/abhinav/linux_work/boot_images/bullseye.img,format=raw \
+        -net user,host=10.0.2.10,hostfwd=tcp:127.0.0.1:10021-:22 \
+        -net nic,model=e1000 \
+        -enable-kvm \
+        -nographic \
+        -pidfile vm.pid \
+        2>&1 | tee vm.log
+
+Signed-off-by: Abhinav Singh <singhabhinav9051571833@gmail.com>
+---
+
+Link to original patch
+ https://lore.kernel.org/all/20231025222811.855336-1-singhabhinav9051571833@gmail.com/
+
+Change from original -> v2 :
+ 1. removed the null check before dereferencing the dereferenced rcu
+    pointer at line 2372.
+ 2. added rcu_dereference(...) at line 2694
+
+Changes from v2 -> v3
+ 1. added rcu_dereference(...) at line 2693
+
+Changes from v3 -> v4
+ 1. added rcu_read_lock() and rcu_read_unlock() before and after
+rcu_defereference() function to avoid race condition.
+
+ kernel/fork.c | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/fork.c b/kernel/fork.c
+index 10917c3e1f03..bb049b611015 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -2369,9 +2369,14 @@ __latent_entropy struct task_struct *copy_process(
+ 
+ 	retval = -EAGAIN;
+ 	if (is_rlimit_overlimit(task_ucounts(p), UCOUNT_RLIMIT_NPROC, rlimit(RLIMIT_NPROC))) {
+-		if (p->real_cred->user != INIT_USER &&
+-		    !capable(CAP_SYS_RESOURCE) && !capable(CAP_SYS_ADMIN))
++		rcu_read_lock();
++		if (rcu_dereference(p->real_cred)->user != INIT_USER &&
++		    !capable(CAP_SYS_RESOURCE) && !capable(CAP_SYS_ADMIN)) {
++			rcu_read_unlock();
+ 			goto bad_fork_cleanup_count;
++		} else {
++			rcu_read_unlock();
++		}
+ 	}
+ 	current->flags &= ~PF_NPROC_EXCEEDED;
+ 
+@@ -2690,9 +2695,11 @@ __latent_entropy struct task_struct *copy_process(
+ 			 * tasklist_lock with adding child to the process tree
+ 			 * for propagate_has_child_subreaper optimization.
+ 			 */
+-			p->signal->has_child_subreaper = p->real_parent->signal->has_child_subreaper ||
+-							 p->real_parent->signal->is_child_subreaper;
+-			list_add_tail(&p->sibling, &p->real_parent->children);
++			rcu_read_lock();
++			p->signal->has_child_subreaper = rcu_dereference(p->real_parent)->signal->has_child_subreaper ||
++							rcu_dereference(p->real_parent)->signal->is_child_subreaper;
++			list_add_tail(&p->sibling, &rcu_dereference(p->real_parent)->children);
++			rcu_read_unlock();
+ 			list_add_tail_rcu(&p->tasks, &init_task.tasks);
+ 			attach_pid(p, PIDTYPE_TGID);
+ 			attach_pid(p, PIDTYPE_PGID);
+-- 
+2.39.2
+

@@ -36,7 +36,7 @@
 #ifdef CONFIG_CC_HAS_NAMED_AS
 
 #ifdef CONFIG_X86_64
-#define __percpu_seg_override
+#define __percpu_seg_override	__seg_gs
 #else
 #define __percpu_seg_override	__seg_fs
 #endif
